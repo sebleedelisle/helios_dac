@@ -173,7 +173,7 @@ typedef struct
 //  Tools
 // -------------------------------------------------------------------------------------------------
 
-static void logError(const char* fmt, ...)
+static void logScanError(const char* fmt, ...)
 {
     va_list arg_ptr;
     va_start(arg_ptr, fmt);
@@ -211,7 +211,7 @@ static void createInterfaceNode(void* callbackArg, const char* ifName, uint32_t 
     INTERFACE_NODE* ifNode = (INTERFACE_NODE*)calloc(1, sizeof(INTERFACE_NODE));
     if (ifNode == (INTERFACE_NODE*)0)
     {
-        logError("calloc(INTERFACE_NODE) failed");
+        logScanError("calloc(INTERFACE_NODE) failed");
         return;
     }
 
@@ -221,7 +221,7 @@ static void createInterfaceNode(void* callbackArg, const char* ifName, uint32_t 
         ifNode->fdSocket = plt_sockOpen(AF_INET, SOCK_DGRAM, 0);
         if (ifNode->fdSocket < 0)
         {
-            logError("socket() failed (error: %d)", plt_sockGetLastError());
+            logScanError("socket() failed (error: %d)", plt_sockGetLastError());
             break;
         }
 
@@ -234,7 +234,7 @@ static void createInterfaceNode(void* callbackArg, const char* ifName, uint32_t 
         // Allow broadcast on socket
         if (plt_sockSetBroadcast(ifNode->fdSocket) < 0)
         {
-            logError("setsockopt(broadcast) failed (error: %d) when scanning IDN DACs (not necessarily a problem, but one of the network interfaces is not usable)", plt_sockGetLastError());
+            logScanError("setsockopt(broadcast) failed (error: %d) when scanning IDN DACs (not necessarily a problem, but one of the network interfaces is not usable)", plt_sockGetLastError());
             break;
         }
 
@@ -247,7 +247,7 @@ static void createInterfaceNode(void* callbackArg, const char* ifName, uint32_t 
 
         if (bind(ifNode->fdSocket, (struct sockaddr*)&bindSockAddr, sizeof(bindSockAddr)) < 0)
         {
-            logError("bind() failed (error: %d) when scanning IDN DACs (not necessarily a problem, but one of the network interfaces is not usable)", plt_sockGetLastError());
+            logScanError("bind() failed (error: %d) when scanning IDN DACs (not necessarily a problem, but one of the network interfaces is not usable)", plt_sockGetLastError());
             break;
         }
 
@@ -263,7 +263,7 @@ static void createInterfaceNode(void* callbackArg, const char* ifName, uint32_t 
     if (ifNode->fdSocket >= 0)
     {
         if (plt_sockClose(ifNode->fdSocket)) 
-            logError("close() failed (error: %d)", plt_sockGetLastError());
+            logScanError("close() failed (error: %d)", plt_sockGetLastError());
     }
 
     // Error: Free node memory
@@ -280,7 +280,7 @@ static void deleteInterfaceNode(INTERFACE_NODE* ifNode)
     if (ifNode->fdSocket >= 0)
     {
         if (plt_sockClose(ifNode->fdSocket)) 
-            logError("close() failed (error: %d)", plt_sockGetLastError());
+            logScanError("close() failed (error: %d)", plt_sockGetLastError());
     }
 
     // Free node memory
@@ -307,7 +307,7 @@ static int sendNextRequest(REQUEST_QUEUE* requestQueue)
     // Send the check request
     if (sendto(requestQueue->fdSocket, (char*)&reqJob[1], reqJob->packetLength, 0, (struct sockaddr*)&remoteSockAddr, sizeof(remoteSockAddr)) < 0)
     {
-        logError("sendto() failed (error: %d)", plt_sockGetLastError());
+        logScanError("sendto() failed (error: %d)", plt_sockGetLastError());
         return -1;
     }
 
@@ -326,7 +326,7 @@ static int scheduleQueryRequest(REQUEST_QUEUE* requestQueue, uint8_t cmd, uint8_
     REQUEST_JOB* reqJob = (REQUEST_JOB*)calloc(1, memSize);
     if (reqJob == (REQUEST_JOB*)0)
     {
-        logError("calloc(REQUEST_JOB) failed");
+        logScanError("calloc(REQUEST_JOB) failed");
         return -1;
     }
 
@@ -362,7 +362,7 @@ static RESPONSE_INFO* getResponseInfo(SCAN_CONTEXT* scanCtx, struct in_addr* add
     responseInfo = (RESPONSE_INFO*)calloc(1, sizeof(RESPONSE_INFO));
     if (responseInfo == (RESPONSE_INFO*)0)
     {
-        logError("calloc(RESPONSE_INFO) failed");
+        logScanError("calloc(RESPONSE_INFO) failed");
         return (RESPONSE_INFO*)0;
     }
 
@@ -399,7 +399,7 @@ static int serviceMapResponse(SCAN_CONTEXT* scanCtx, RESPONSE_INFO* responseInfo
     char strRemoteAddr[20];
     if (inet_ntop(AF_INET, &responseInfo->addr, strRemoteAddr, sizeof(strRemoteAddr)) == (char*)0)
     {
-        logError("inet_ntop() failed (error: %d)", plt_sockGetLastError());
+        logScanError("inet_ntop() failed (error: %d)", plt_sockGetLastError());
         return -1;
     }
 
@@ -409,14 +409,14 @@ static int serviceMapResponse(SCAN_CONTEXT* scanCtx, RESPONSE_INFO* responseInfo
 
     if (payloadLen < sizeof(IDNHDR_SERVICEMAP_RESPONSE))
     {
-        logError("ServiceMapRsp(%s): Invalid response length %u", strRemoteAddr, payloadLen);
+        logScanError("ServiceMapRsp(%s): Invalid response length %u", strRemoteAddr, payloadLen);
         return 0;
     }
 
     IDNHDR_SERVICEMAP_RESPONSE* serviceMapHdr = (IDNHDR_SERVICEMAP_RESPONSE*)payloadPtr;
     if (serviceMapHdr->structSize != sizeof(IDNHDR_SERVICEMAP_RESPONSE))
     {
-        logError("ServiceMapRsp(%s): Invalid header size %u", strRemoteAddr, serviceMapHdr->structSize);
+        logScanError("ServiceMapRsp(%s): Invalid header size %u", strRemoteAddr, serviceMapHdr->structSize);
         return 0;
     }
 
@@ -425,14 +425,14 @@ static int serviceMapResponse(SCAN_CONTEXT* scanCtx, RESPONSE_INFO* responseInfo
     payloadLen -= sizeof(IDNHDR_SERVICEMAP_RESPONSE);
     if (serviceMapHdr->entrySize != sizeof(IDNHDR_SERVICEMAP_ENTRY))
     {
-        logError("ServiceMapRsp(%s): Invalid entry struct size %u", strRemoteAddr, serviceMapHdr->entrySize);
+        logScanError("ServiceMapRsp(%s): Invalid entry struct size %u", strRemoteAddr, serviceMapHdr->entrySize);
         return 0;
     }
 
     unsigned entryCount = serviceMapHdr->relayEntryCount + serviceMapHdr->serviceEntryCount;
     if (payloadLen != entryCount * serviceMapHdr->entrySize)
     {
-        logError("ServiceMapRsp(%s): Invalid entry table %u != %u * %u", strRemoteAddr, payloadLen, entryCount, serviceMapHdr->entrySize);
+        logScanError("ServiceMapRsp(%s): Invalid entry table %u != %u * %u", strRemoteAddr, payloadLen, entryCount, serviceMapHdr->entrySize);
         return 0;
     }
 
@@ -453,7 +453,7 @@ static int serviceMapResponse(SCAN_CONTEXT* scanCtx, RESPONSE_INFO* responseInfo
             relayTable = (IDNSL_RELAY_INFO*)calloc(serviceMapHdr->relayEntryCount, sizeof(IDNSL_RELAY_INFO));
             if (relayTable == (IDNSL_RELAY_INFO*)0)
             {
-                logError("calloc(IDNSL_RELAY_INFO) failed");
+                logScanError("calloc(IDNSL_RELAY_INFO) failed");
                 break;
             }
 
@@ -464,17 +464,17 @@ static int serviceMapResponse(SCAN_CONTEXT* scanCtx, RESPONSE_INFO* responseInfo
                 // Validate input fields
                 if (serviceMapEntry->serviceID != 0)
                 {
-                    logError("ServiceMapRsp(%s, relay): Invalid serviceID %u", strRemoteAddr, serviceMapEntry->serviceID);
+                    logScanError("ServiceMapRsp(%s, relay): Invalid serviceID %u", strRemoteAddr, serviceMapEntry->serviceID);
                     break;
                 }
                 else if (serviceMapEntry->serviceType != 0)
                 {
-                    logError("ServiceMapRsp(%s, relay): Invalid serviceType %u", strRemoteAddr, serviceMapEntry->serviceType);
+                    logScanError("ServiceMapRsp(%s, relay): Invalid serviceType %u", strRemoteAddr, serviceMapEntry->serviceType);
                     break;
                 }
                 else if (serviceMapEntry->relayNumber == 0)
                 {
-                    logError("ServiceMapRsp(%s, relay): Invalid relayNumber %u", strRemoteAddr, serviceMapEntry->relayNumber);
+                    logScanError("ServiceMapRsp(%s, relay): Invalid relayNumber %u", strRemoteAddr, serviceMapEntry->relayNumber);
                     break;
                 }
 
@@ -498,7 +498,7 @@ static int serviceMapResponse(SCAN_CONTEXT* scanCtx, RESPONSE_INFO* responseInfo
             serviceTable = (IDNSL_SERVICE_INFO*)calloc(serviceMapHdr->serviceEntryCount, sizeof(IDNSL_SERVICE_INFO));
             if (serviceTable == (IDNSL_SERVICE_INFO*)0)
             {
-                logError("calloc(IDNSL_SERVICE_INFO) failed");
+                logScanError("calloc(IDNSL_SERVICE_INFO) failed");
                 break;
             }
 
@@ -509,7 +509,7 @@ static int serviceMapResponse(SCAN_CONTEXT* scanCtx, RESPONSE_INFO* responseInfo
                 // Validate input fields
                 if (serviceMapEntry->serviceID == 0)
                 {
-                    logError("ServiceMapRsp(%s, service): Invalid serviceID %u", strRemoteAddr, serviceMapEntry->serviceID);
+                    logScanError("ServiceMapRsp(%s, service): Invalid serviceID %u", strRemoteAddr, serviceMapEntry->serviceID);
                     break;
                 }
 
@@ -548,7 +548,7 @@ static int serviceMapResponse(SCAN_CONTEXT* scanCtx, RESPONSE_INFO* responseInfo
                     }
                     if (relayIndex == serviceMapHdr->relayEntryCount)
                     {
-                        logError("ServiceMapRsp(%s, service): Invalid relayNumber %u", strRemoteAddr, serviceMapEntry->relayNumber);
+                        logScanError("ServiceMapRsp(%s, service): Invalid relayNumber %u", strRemoteAddr, serviceMapEntry->relayNumber);
                         break;
                     }
                 }
@@ -592,7 +592,7 @@ static int recvInfoResponse(SCAN_CONTEXT* scanCtx)
     int nBytes = recvfrom(fdSocket, (char*)scanCtx->packetBuffer, sizeof(scanCtx->packetBuffer), 0, recvAddr, &recvAddrSize);
     if (nBytes < 0)
     {
-        logError("recvfrom() failed (error: %d)", plt_sockGetLastError());
+        logScanError("recvfrom() failed (error: %d)", plt_sockGetLastError());
         return -1;
     }
 
@@ -600,14 +600,14 @@ static int recvInfoResponse(SCAN_CONTEXT* scanCtx)
     char strRemoteAddr[20];
     if (inet_ntop(AF_INET, &recvSockAddr.sin_addr, strRemoteAddr, sizeof(strRemoteAddr)) == (char*)0)
     {
-        logError("inet_ntop() failed (error: %d)", plt_sockGetLastError());
+        logScanError("inet_ntop() failed (error: %d)", plt_sockGetLastError());
         return -1;
     }
 
     // Check sender port
     if (ntohs(recvSockAddr.sin_port) != IDNVAL_HELLO_UDP_PORT)
     {
-        logError("InfoRsp(%s): Invalid sender port %u", strRemoteAddr, ntohs(recvSockAddr.sin_port));
+        logScanError("InfoRsp(%s): Invalid sender port %u", strRemoteAddr, ntohs(recvSockAddr.sin_port));
         return 0;
     }
 
@@ -623,7 +623,7 @@ static int recvInfoResponse(SCAN_CONTEXT* scanCtx)
 
     if ((size_t)nBytes < sizeof(IDNHDR_PACKET))
     {
-        logError("InfoRsp(%s): Invalid packet size %u", strRemoteAddr, nBytes);
+        logScanError("InfoRsp(%s): Invalid packet size %u", strRemoteAddr, nBytes);
         return 0;
     }
 
@@ -638,7 +638,7 @@ static int recvInfoResponse(SCAN_CONTEXT* scanCtx)
         uint16_t sequenceNum = responseInfo->serviceMapSequenceNum;
         if (ntohs(recvPacketHdr->sequence) != sequenceNum)
         {
-            logError("ServiceMapRsp(%s): Invalid sequence %04X %04X", strRemoteAddr, recvPacketHdr->sequence, sequenceNum);
+            logScanError("ServiceMapRsp(%s): Invalid sequence %04X %04X", strRemoteAddr, recvPacketHdr->sequence, sequenceNum);
             return 0;
         }
 
@@ -649,7 +649,7 @@ static int recvInfoResponse(SCAN_CONTEXT* scanCtx)
     }
     else
     {
-        logError("%s: Invalid command 0x%02X", strRemoteAddr, recvPacketHdr->command);
+        logScanError("%s: Invalid command 0x%02X", strRemoteAddr, recvPacketHdr->command);
         return 0;
     }
 
@@ -680,7 +680,7 @@ static int sendBroadcastRequest(SCAN_CONTEXT* scanCtx, INTERFACE_NODE* ifNode)
     // Broadcast the scan request
     if (sendto(ifNode->fdSocket, (char*)&reqPacketHdr, sizeof(reqPacketHdr), 0, (struct sockaddr*)&remoteSockAddr, sizeof(remoteSockAddr)) < 0)
     {
-        logError("sendto() failed (error: %d)", plt_sockGetLastError());
+        logScanError("sendto() failed (error: %d)", plt_sockGetLastError());
         return -1;
     }
 
@@ -717,7 +717,7 @@ static IDNSL_SERVER_INFO* getServerInfo(SCAN_CONTEXT* scanCtx, IDNHDR_SCAN_RESPO
     uint8_t unitIDLen = scanRspHdr->unitID[0];
     if ((unitIDLen >= sizeof(scanRspHdr->unitID)) || (unitIDLen >= sizeof(((IDNSL_SERVER_INFO*)0)->unitID)))
     {
-        logError("serverInfo: Invalid unitID length %u", unitIDLen);
+        logScanError("serverInfo: Invalid unitID length %u", unitIDLen);
         return (IDNSL_SERVER_INFO*)0;
     }
 
@@ -725,7 +725,7 @@ static IDNSL_SERVER_INFO* getServerInfo(SCAN_CONTEXT* scanCtx, IDNHDR_SCAN_RESPO
     *ppServerInfo = (IDNSL_SERVER_INFO*)calloc(1, sizeof(IDNSL_SERVER_INFO));
     if (*ppServerInfo == (IDNSL_SERVER_INFO*)0)
     {
-        logError("calloc(IDN_SERVER_INFO) failed");
+        logScanError("calloc(IDN_SERVER_INFO) failed");
         return (IDNSL_SERVER_INFO*)0;
     }
 
@@ -840,7 +840,7 @@ static int recvScanResponse(SCAN_CONTEXT* scanCtx, INTERFACE_NODE* ifNode)
     int nBytes = recvfrom(fdSocket, (char*)scanCtx->packetBuffer, sizeof(scanCtx->packetBuffer), 0, recvAddr, &recvAddrSize);
     if (nBytes < 0)
     {
-        logError("recvfrom() failed (error: %d)", plt_sockGetLastError());
+        logScanError("recvfrom() failed (error: %d)", plt_sockGetLastError());
         return -1;
     }
 
@@ -848,14 +848,14 @@ static int recvScanResponse(SCAN_CONTEXT* scanCtx, INTERFACE_NODE* ifNode)
     char strRemoteAddr[20];
     if (inet_ntop(AF_INET, &recvSockAddr.sin_addr, strRemoteAddr, sizeof(strRemoteAddr)) == (char*)0)
     {
-        logError("inet_ntop() failed (error: %d)", plt_sockGetLastError());
+        logScanError("inet_ntop() failed (error: %d)", plt_sockGetLastError());
         return -1;
     }
 
     // Check sender port
     if (ntohs(recvSockAddr.sin_port) != IDNVAL_HELLO_UDP_PORT)
     {
-        logError("ScanRsp(%s): Invalid sender port %u", strRemoteAddr, ntohs(recvSockAddr.sin_port));
+        logScanError("ScanRsp(%s): Invalid sender port %u", strRemoteAddr, ntohs(recvSockAddr.sin_port));
         return 0;
     }
 
@@ -871,7 +871,7 @@ static int recvScanResponse(SCAN_CONTEXT* scanCtx, INTERFACE_NODE* ifNode)
 
     if ((size_t)nBytes < sizeof(IDNHDR_PACKET))
     {
-        logError("ScanRsp(%s): Invalid packet size %u", strRemoteAddr, nBytes);
+        logScanError("ScanRsp(%s): Invalid packet size %u", strRemoteAddr, nBytes);
         return 0;
     }
 
@@ -883,7 +883,7 @@ static int recvScanResponse(SCAN_CONTEXT* scanCtx, INTERFACE_NODE* ifNode)
     // Check packet command
     if (recvPacketHdr->command != IDNCMD_SCAN_RESPONSE)
     {
-        logError("scanRsp(%s): Invalid command 0x%02X", strRemoteAddr, recvPacketHdr->command);
+        logScanError("scanRsp(%s): Invalid command 0x%02X", strRemoteAddr, recvPacketHdr->command);
         return 0;
     }
 
@@ -891,7 +891,7 @@ static int recvScanResponse(SCAN_CONTEXT* scanCtx, INTERFACE_NODE* ifNode)
     uint16_t sequenceNum = ifNode ? ifNode->scanSequenceNum : responseInfo->checkSequenceNum;
     if (ntohs(recvPacketHdr->sequence) != sequenceNum)
     {
-        logError("scanRsp(%s): Invalid sequence %04X %04X", strRemoteAddr, recvPacketHdr->sequence, sequenceNum);
+        logScanError("scanRsp(%s): Invalid sequence %04X %04X", strRemoteAddr, recvPacketHdr->sequence, sequenceNum);
         return 0;
     }
 
@@ -902,20 +902,20 @@ static int recvScanResponse(SCAN_CONTEXT* scanCtx, INTERFACE_NODE* ifNode)
 
     if (payloadLen < sizeof(IDNHDR_SCAN_RESPONSE))
     {
-        logError("scanRsp(%s): Invalid response length %u", strRemoteAddr, payloadLen);
+        logScanError("scanRsp(%s): Invalid response length %u", strRemoteAddr, payloadLen);
         return 0;
     }
 
     IDNHDR_SCAN_RESPONSE* scanRspHdr = (IDNHDR_SCAN_RESPONSE*)payloadPtr;
     if (scanRspHdr->structSize < sizeof(IDNHDR_SCAN_RESPONSE))
     {
-        logError("scanRsp(%s): Invalid header size %u", strRemoteAddr, scanRspHdr->structSize);
+        logScanError("scanRsp(%s): Invalid header size %u", strRemoteAddr, scanRspHdr->structSize);
         return 0;
     }
 
     if (payloadLen < scanRspHdr->structSize)
     {
-        logError("scanRsp(%s): Invalid payload length %u %u", strRemoteAddr, payloadLen, scanRspHdr->structSize);
+        logScanError("scanRsp(%s): Invalid payload length %u %u", strRemoteAddr, payloadLen, scanRspHdr->structSize);
         return 0;
     }
 
@@ -1048,7 +1048,7 @@ static int runScan(SCAN_CONTEXT* scanCtx, unsigned msTimeout)
         int numReady = select(maxSocket + 1, &rfdsResult, &wfdsResult, 0, &tv);
         if (numReady < 0)
         {
-            logError("select() failed (error: %d)", plt_sockGetLastError());
+            logScanError("select() failed (error: %d)", plt_sockGetLastError());
             return -1;
         }
         else if (numReady == 0)
@@ -1162,7 +1162,7 @@ int getIDNServerList(IDNSL_SERVER_INFO** ppFirstServerInfo, uint8_t clientGroup,
     SCAN_CONTEXT* scanCtx = (SCAN_CONTEXT*)calloc(1, sizeof(SCAN_CONTEXT));
     if (scanCtx == (SCAN_CONTEXT*)0)
     {
-        logError("calloc(SCAN_CONTEXT) failed");
+        logScanError("calloc(SCAN_CONTEXT) failed");
         return -1;
     }
 
@@ -1188,7 +1188,7 @@ int getIDNServerList(IDNSL_SERVER_INFO** ppFirstServerInfo, uint8_t clientGroup,
         scanCtx->checkRequestQueue.fdSocket = plt_sockOpen(AF_INET, SOCK_DGRAM, 0);
         if (scanCtx->checkRequestQueue.fdSocket < 0)
         {
-            logError("socket() failed (error: %d)", plt_sockGetLastError());
+            logScanError("socket() failed (error: %d)", plt_sockGetLastError());
             break;
         }
 
@@ -1196,7 +1196,7 @@ int getIDNServerList(IDNSL_SERVER_INFO** ppFirstServerInfo, uint8_t clientGroup,
         scanCtx->infoRequestQueue.fdSocket = plt_sockOpen(AF_INET, SOCK_DGRAM, 0);
         if (scanCtx->infoRequestQueue.fdSocket < 0)
         {
-            logError("socket() failed (error: %d)", plt_sockGetLastError());
+            logScanError("socket() failed (error: %d)", plt_sockGetLastError());
             break;
         }
 
@@ -1252,7 +1252,7 @@ int getIDNServerList(IDNSL_SERVER_INFO** ppFirstServerInfo, uint8_t clientGroup,
     {
         int fdSocket = scanCtx->checkRequestQueue.fdSocket;
         if (plt_sockClose(fdSocket)) 
-            logError("close() failed (error: %d)", plt_sockGetLastError());
+            logScanError("close() failed (error: %d)", plt_sockGetLastError());
     }
 
     // Close unicast reachability check socket
@@ -1260,7 +1260,7 @@ int getIDNServerList(IDNSL_SERVER_INFO** ppFirstServerInfo, uint8_t clientGroup,
     {
         int fdSocket = scanCtx->infoRequestQueue.fdSocket;
         if (plt_sockClose(fdSocket)) 
-            logError("close() failed (error: %d)", plt_sockGetLastError());
+            logScanError("close() failed (error: %d)", plt_sockGetLastError());
     }
 
     // In case of errors - free device list memory

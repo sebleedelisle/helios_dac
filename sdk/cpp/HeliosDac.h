@@ -219,7 +219,9 @@ public:
 	// Can be periodically called to implement hot-plugging support. But it should NOT be called at the same time as there is output to the DAC, or it can disrupt the stream.
 	int ReScanDevices();
 	int ReScanDevicesOnlyUsb();
-	int ReScanDevicesOnlyNetwork();
+	// With preserveExisting, only append new devices: never close, replace, or
+	// reorder existing slots. This mode supports discovery during IDN output.
+	int ReScanDevicesOnlyNetwork(bool preserveExisting = false);
 
 	// Closes and frees all devices.
 	int CloseDevices();
@@ -424,7 +426,7 @@ private:
 	};
 
 	int _OpenUsbDevices(bool inPlace);
-	int _OpenIdnDevices(bool inPlace);
+	int _OpenIdnDevices(bool inPlace, bool preserveExisting = false);
 	void _SortDeviceList();
 	void _RemoveNotFoundIdnServers(IDNSL_SERVER_INFO* firstServerInfo);
 	bool _GetIdnServerExists(IDNSL_SERVER_INFO* firstServerInfo);

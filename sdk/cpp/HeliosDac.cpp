@@ -112,11 +112,13 @@ int HeliosDac::ReScanDevicesOnlyUsb()
 	return (int)deviceList.size();
 }
 
-int HeliosDac::ReScanDevicesOnlyNetwork()
+int HeliosDac::ReScanDevicesOnlyNetwork(bool preserveExisting)
 {
-	_OpenIdnDevices(true);
+	_OpenIdnDevices(true, preserveExisting);
 
-	inited = true;
+	// Avoid writing initialization state while existing output threads read it.
+	if (!inited)
+		inited = true;
 
 	return (int)deviceList.size();
 }
@@ -331,7 +333,7 @@ bool HeliosDac::_GetIdnServerExists(IDNSL_SERVER_INFO* serverInfo)
 }
 
 // Internal function. inPlace = Whether to keep the current opened devices in their device number slots and only scan for changes.
-int HeliosDac::_OpenIdnDevices(bool inPlace)
+int HeliosDac::_OpenIdnDevices(bool inPlace, bool preserveExisting)
 {
 	// Scanning for IDN (network) devices
 
@@ -362,7 +364,7 @@ int HeliosDac::_OpenIdnDevices(bool inPlace)
 	}
 	else
 	{
-		if (inPlace && inited)
+		if (inPlace && inited && !preserveExisting)
 		{
 			// Verify connection of existing devices, close them if they cannot be reached
 			_RemoveNotFoundIdnServers(firstServerInfo);
@@ -424,7 +426,7 @@ int HeliosDac::_OpenIdnDevices(bool inPlace)
 	}
 	else
 	{
-		if (inPlace && inited)
+		if (inPlace && inited && !preserveExisting)
 		{
 			// Verify connection of existing devices, close them if they cannot be reached
 			_RemoveNotFoundIdnServers(firstServerInfo);
@@ -484,7 +486,7 @@ int HeliosDac::_OpenIdnDevices(bool inPlace)
 	{
 		IDNCONTEXT* idnContext = idnContexts[i];
 
-		if (inPlace)
+		if (inPlace && !preserveExisting)
 		{
 			// Check if this is an already known device that was previously closed, if so insert it back to its previous device number
 			bool found = false;
@@ -514,7 +516,10 @@ int HeliosDac::_OpenIdnDevices(bool inPlace)
 		else
 		{
 			logInfo("Found new IDN DAC.\n");
-			deviceList.push_back(std::make_unique<HeliosDacIdnDevice>(idnContext));
+			// Construct outside the lock so active writers only wait for insertion.
+			auto device = std::make_unique<HeliosDacIdnDevice>(idnContext);
+			std::lock_guard<std::mutex> lock(threadLock);
+			deviceList.push_back(std::move(device));
 			numDevices++;
 		}
 	}
